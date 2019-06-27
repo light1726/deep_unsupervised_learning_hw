@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import os
+import matplotlib.pyplot as plt
 
 
 def sample_data():
@@ -29,8 +30,16 @@ class DensityEstimator(object):
         probs = tf.exp(logits) / tf.reduce_sum(tf.exp(self.theta))
         return tf.reduce_mean(-tf.log(probs) / tf.log(2.0))
 
+    def sample(self, n_sample):
+        distribution = tf.distributions.Categorical(logits=tf.squeeze(self.theta))
+        samples = distribution.sample([n_sample])
+        return samples
 
-def train():
+    def distributions(self):
+        return tf.nn.softmax(tf.squeeze(self.theta))
+
+
+def main():
     data = sample_data()
     data_len = data.size
     train_data = data[:int(0.8 * data_len)]
@@ -46,7 +55,10 @@ def train():
 
     # set up graph
     input_pl = tf.placeholder(dtype=tf.int32, shape=[None, ], name='input_pl')
+    n_sample_pl = tf.placeholder(dtype=tf.int32, shape=[], name='n_sample')
     density_estimator = DensityEstimator()
+    draw_samples = density_estimator.sample(n_sample_pl)
+    distributions = density_estimator.distributions()
     mean_minus_log_probs = density_estimator(input_pl)
     tf.summary.scalar('mean_minus_log_probs', mean_minus_log_probs)
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
@@ -84,8 +96,18 @@ def train():
     print('Saved final checkpoint to {}'.format(train_logdir))
     test_loss = sess.run(mean_minus_log_probs, feed_dict={input_pl: test_data})
     print("Test loss is {}".format(test_loss))
+    samples = sess.run(draw_samples, feed_dict={n_sample_pl: 1000})
+    probs = sess.run(distributions)
     sess.close()
+
+    plt.subplot(311)
+    plt.hist(data, bins=100)
+    plt.subplot(312)
+    plt.hist(samples, bins=100)
+    plt.subplot(313)
+    plt.bar(np.arange(100), probs)
+    plt.show()
 
 
 if __name__ == '__main__':
-    train()
+    main()
